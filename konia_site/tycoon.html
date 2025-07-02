@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Konia Tycoon</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: url('https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1740&q=80') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      text-align: center;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 20px;
+      margin: 40px auto;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 0 20px #000;
+      animation: fadeIn 1.5s ease-in-out;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 10px;
+      background: gold;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.3s;
+    }
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 10px gold;
+    }
+    .stats {
+      font-size: 1.2em;
+      animation: pulse 2s infinite;
+    }
+    #toggleAutoMining {
+      margin-top: 10px;
+      background-color: #e67e22;
+    }
+    #toggleAutoMining.on {
+      background-color: #2ecc71;
+      color: white;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0% { color: gold; }
+      50% { color: #fff; }
+      100% { color: gold; }
+    }
+  </style>
+</head>
+<body>
+  <audio id="bgMusic" autoplay loop>
+    <source src="https://cdn.pixabay.com/download/audio/2023/03/07/audio_d7d72be1e7.mp3?filename=relaxing-background-ambient-114566.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
+
+  <div class="container">
+    <h1>Konia Tycoon</h1>
+    <p class="stats">KON Mined: <span id="konCount">0</span></p>
+    <p>KON Earned/sec: <span id="konPerSec">0</span></p>
+    <button onclick="mineKon()">Mine KON</button>
+    <button onclick="buyUpgrade()">Buy Upgrade (10 KON)</button>
+    <button onclick="claimKon()">Claim to Wallet</button>
+    <br>
+    <button onclick="connectWallet()">Connect Wallet</button>
+    <hr>
+    <p><strong>Subscription System</strong></p>
+    <button onclick="subscribeWithETH()">Subscribe with ETH</button>
+    <button onclick="subscribeWithKON()">Subscribe with KON</button>
+    <p id="subscriptionStatus">Checking subscription status...</p>
+    <button id="toggleAutoMining" onclick="toggleAutoMining()">Enable Auto-Mining</button>
+  </div>
+
+  <script>
+    let konCount = parseInt(localStorage.getItem('konCount')) || 0;
+    let upgradeLevel = parseInt(localStorage.getItem('upgradeLevel')) || 1;
+    let userAccount = null;
+    let autoMiningEnabled = localStorage.getItem('autoMiningEnabled') === 'true';
+    let isSubscribed = false;
+    const subscriptionContractAddress = 'YOUR_CONTRACT_ADDRESS';
+    const konTokenAddress = 'YOUR_KON_TOKEN_ADDRESS';
+
+    function updateAutoMiningButton() {
+      const btn = document.getElementById("toggleAutoMining");
+      if (autoMiningEnabled) {
+        btn.textContent = "Disable Auto-Mining";
+        btn.classList.add("on");
+      } else {
+        btn.textContent = "Enable Auto-Mining";
+        btn.classList.remove("on");
+      }
+    }
+
+    function updateDisplay() {
+      document.getElementById('konCount').textContent = konCount;
+      document.getElementById('konPerSec').textContent = autoMiningEnabled && isSubscribed ? upgradeLevel : 0;
+      localStorage.setItem('konCount', konCount);
+      localStorage.setItem('upgradeLevel', upgradeLevel);
+    }
+
+    function mineKon() {
+      konCount += upgradeLevel;
+      updateDisplay();
+      playClickSound();
+    }
+
+    function buyUpgrade() {
+      if (konCount >= 10) {
+        konCount -= 10;
+        upgradeLevel++;
+        alert('Upgrade purchased! You now earn ' + upgradeLevel + ' KON per click.');
+        updateDisplay();
+        playClickSound();
+      } else {
+        alert('Not enough KON!');
+      }
+    }
+
+    function claimKon() {
+      alert('Claiming KON to your wallet... (coming soon)');
+    }
+
+    async function connectWallet() {
+      if (typeof window.ethereum !== 'undefined') {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          userAccount = accounts[0];
+          alert('Wallet connected: ' + userAccount);
+          checkSubscription();
+        } catch (err) {
+          alert('Wallet connection failed');
+        }
+      } else {
+        alert('Please install MetaMask');
+      }
+    }
+
+    async function checkSubscription() {
+      if (!userAccount || !window.ethereum) return;
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const contract = new ethers.Contract(subscriptionContractAddress, [
+        "function isSubscribed(address user) external view returns (bool)"
+      ], provider);
+
+      try {
+        isSubscribed = await contract.isSubscribed(userAccount);
+        document.getElementById("subscriptionStatus").textContent = isSubscribed ? "✅ You are subscribed" : "❌ Not subscribed";
+        updateDisplay();
+      } catch (err) {
+        console.error(err);
+        document.getElementById("subscriptionStatus").textContent = "Subscription check failed";
+      }
+    }
+
+    async function subscribeWithETH() {
+      if (!userAccount || !window.ethereum) return;
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = new ethers.Contract(subscriptionContractAddress, [
+        "function subscribeWithETH() external payable"
+      ], signer);
+
+      try {
+        const tx = await contract.subscribeWithETH({ value: ethers.utils.parseEther("0.01") });
+        await tx.wait();
+        alert("Subscribed with ETH!");
+        checkSubscription();
+      } catch (err) {
+        console.error(err);
+        alert("ETH Subscription failed");
+      }
+    }
+
+    async function subscribeWithKON() {
+      if (!userAccount || !window.ethereum) return;
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+
+      const token = new ethers.Contract(konTokenAddress, [
+        "function approve(address spender, uint256 amount) external returns (bool)"
+      ], signer);
+
+      const contract = new ethers.Contract(subscriptionContractAddress, [
+        "function subscribeWithKON() external"
+      ], signer);
+
+      try {
+        await token.approve(subscriptionContractAddress, ethers.utils.parseUnits("10000", 18));
+        const tx = await contract.subscribeWithKON();
+        await tx.wait();
+        alert("Subscribed with KON!");
+        checkSubscription();
+      } catch (err) {
+        console.error(err);
+        alert("KON Subscription failed");
+      }
+    }
+
+    function toggleAutoMining() {
+      autoMiningEnabled = !autoMiningEnabled;
+      localStorage.setItem("autoMiningEnabled", autoMiningEnabled);
+      updateAutoMiningButton();
+      updateDisplay();
+    }
+
+    setInterval(() => {
+      if (autoMiningEnabled && isSubscribed) {
+        konCount += upgradeLevel;
+        updateDisplay();
+      }
+    }, 1000);
+
+    function playClickSound() {
+      const audio = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_7b90c6f6e4.mp3?filename=coin-click-143039.mp3');
+      audio.play();
+    }
+
+    updateAutoMiningButton();
+    updateDisplay();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+</body>
+</html>
